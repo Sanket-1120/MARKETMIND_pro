@@ -80,6 +80,7 @@ body {
   grid-template-columns: repeat(3, 1fr);
   grid-template-areas:
     "score explanation explanation"
+    "profile profile profile"
     "trends trends rawdata";
   gap: 1.5rem;
 }
@@ -102,10 +103,22 @@ body {
   color: var(--header-color);
 }
 
-.main-score { grid-area: score; text-align: center; }
-.explanation-chart { grid-area: explanation; }
-.trend-chart { grid-area: trends; }
-.raw-data-card { grid-area: rawdata; }
+.main-score {
+  grid-area: score;
+  text-align: center;
+}
+
+.explanation-chart {
+  grid-area: explanation;
+}
+
+.trend-chart {
+  grid-area: trends;
+}
+
+.raw-data-card {
+  grid-area: rawdata;
+}
 
 .score-display {
   margin: 1rem 0;
@@ -139,7 +152,8 @@ body {
   text-align: center;
   font-size: 0.9em;
   color: #6c757d;
-  margin-top: auto; /* Pushes to the bottom */
+  margin-top: auto;
+  /* Pushes to the bottom */
 }
 
 /* Tab Styles */
@@ -148,6 +162,7 @@ body {
   border-bottom: 1px solid var(--border-color);
   margin-bottom: 1rem;
 }
+
 .tabs button {
   padding: 10px 15px;
   border: none;
@@ -157,34 +172,61 @@ body {
   color: var(--primary-color);
   border-bottom: 3px solid transparent;
 }
+
 .tabs button.active {
   border-bottom-color: var(--primary-color);
   font-weight: 600;
 }
+
 .tab-content ul {
   list-style-type: none;
   padding: 0;
   margin: 0;
-  flex-grow: 1; /* Allows list to take available space */
+  flex-grow: 1;
+  /* Allows list to take available space */
   overflow-y: auto;
 }
+
 .tab-content li {
   padding: 8px 5px;
   border-bottom: 1px solid #f1f3f5;
   font-size: 0.9em;
 }
+
 .tab-content a {
   text-decoration: none;
   color: #0056b3;
 }
+
 .tab-content a:hover {
   text-decoration: underline;
 }
 
-.error, .loading-text {
+.error,
+.loading-text {
   text-align: center;
   font-size: 1.2em;
   padding: 2rem;
+}
+
+.company-profile {
+  grid-area: profile;
+}
+
+.company-profile h2 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  color: var(--primary-color);
+}
+
+.company-profile .summary {
+  font-size: 0.9em;
+  color: #555;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* Responsive layout for tablets */

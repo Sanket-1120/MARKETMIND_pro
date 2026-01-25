@@ -15,3 +15,5 @@ shap
 lightgbm
 nltk
 vaderSentiment
+google-generativeai
+feedparser
