@@ -10,166 +10,107 @@ import {
     Tooltip,
     ResponsiveContainer,
     Brush,
-    Rectangle
+    ReferenceLine
 } from 'recharts';
 import { Box, Typography, ToggleButton, ToggleButtonGroup, Stack } from '@mui/material';
-import { ShowChart, BarChartOutlined, CandlestickChart, Timeline } from '@mui/icons-material';
+import { ShowChart, BarChartOutlined, Timeline } from '@mui/icons-material';
 import { format } from 'date-fns';
 
-// --- CUSTOM SHAPES ---
-
-// Custom Candle Shape for the Bar Chart
-const CandleStickShape = (props) => {
-    const { x, y, width, height, payload } = props;
-    const { open, close, high, low } = payload;
-    const isUp = close >= open;
-    const color = isUp ? '#3fb950' : '#f85149';
-
-    // Scale for wicks
-    // We need pixel coordinates. But standard custom shape might be hard to map back to values.
-    // Instead, we rely on the fact that the Bar chart is receiving [min, max] as value?
-    // Using a simpler approach: Rectangle for body, Line for wick.
-    // However, Recharts passes 'y' and 'height' based on the 'dataKey' value.
-    // For a robust candle, we often need coordinates from the axis.
-
-    // Alternative: We blindly assume the 'Bar' is rendering the Body, and we draw the wicks ourselves?
-    // Recharts CustomShape is tricky. 
-    // Let's use a simpler known trick: A composed chart with a bar for body and an error bar for wicks?
-    // No, standard Custom Shape. We need the Y-axis scale function. 
-    // Since we don't have easy access to scale() here without using a custom component inside the chart,
-    // we will stick to a simpler visual for "Candle" mode: High-Low Bars if simple, or just a Bar that represents Open-Close.
-
-    // Actually, "Yahoo Finance" style often implies OHLC.
-    // Let's try to draw it. 'y' is the top, 'height' is diff.
-    // This assumes the bar is mapped to [min(open,close), max(open,close)].
-
-    // NOTE: Implementing perfect SVG candles in Recharts custom shape without scale access is hard.
-    // We will draw a simple "Block" for the body.
-
-    return (
-        <g>
-            {/* Wick - Approximated visually (Center line) */}
-            {/* This is inaccurate without scale access. We will skip complex candle drawing to avoid painting fake data. */}
-            {/* We will render a standard Bar for the body representation. */}
-            <rect x={x} y={y} width={width} height={height} fill={color} />
-        </g>
-    );
-};
-
 const StockChart = ({ data, timeRange = '1M', currencySymbol = '₹' }) => {
-    const [chartType, setChartType] = useState('area'); // area, line, candle
+    const [chartType, setChartType] = useState('area');
 
     // 1. SIMPLE VALIDATION
     if (!data || !Array.isArray(data) || data.length === 0) {
         return (
             <Box display="flex" alignItems="center" justifyContent="center" height="100%" bgcolor="#0d1117">
-                <Typography color="text.secondary">Waiting for data...</Typography>
+                <Typography color="text.secondary" variant="body2">Waiting for market data...</Typography>
             </Box>
         );
     }
 
-    // 2. ROBUST DATA TRANSFORMATION & AGGREGATION
+    // 2. DATA PREPARATION (No Aggregation - Full Fidelity for Zoom)
     const chartData = useMemo(() => {
-        let rawData = [...data];
-
-        // AGGREGATION LOGIC: Show "Monthly" data for long ranges
-        if (timeRange === '1Y' || timeRange === '5Y' || timeRange === 'max') {
-            const monthlyGroups = {};
-            rawData.forEach(item => {
-                const d = new Date(item.Date);
-                const key = `${d.getFullYear()}-${d.getMonth()}`; // Group by YYYY-Month
-                monthlyGroups[key] = item; // Overwrite, keeping the LAST entry for that month
-            });
-            rawData = Object.values(monthlyGroups);
-        }
-
-        return rawData.map(item => {
-            const dateObj = new Date(item.Date);
+        return data.map(item => {
+            const d = new Date(item.Date);
             return {
                 ...item,
-                // Core Data
-                unixTime: dateObj.getTime(),
-                dateObj: dateObj,
+                unixTime: d.getTime(),
+                dateStr: d.toISOString(),
                 close: parseFloat(item.Close),
                 open: parseFloat(item.Open),
                 high: parseFloat(item.High),
                 low: parseFloat(item.Low),
                 volume: parseFloat(item.Volume || 0),
-                bodyMin: Math.min(parseFloat(item.Open), parseFloat(item.Close)),
-                bodyMax: Math.max(parseFloat(item.Open), parseFloat(item.Close)),
+                // Helper for color coding volume if needed (optional)
+                isUp: parseFloat(item.Close) >= parseFloat(item.Open)
             };
         });
-    }, [data, timeRange]);
+    }, [data]);
 
     // Formatters
     const xAxisFormatter = (tickItem) => {
         if (!tickItem) return '';
         const d = new Date(tickItem);
-        if (timeRange === '1W') return format(d, 'EEE'); // Mon
-        if (timeRange === '1M') return format(d, 'MMM d'); // Jan 5
-        // For long ranges, show Month/Year
-        if (timeRange === '5Y' || timeRange === 'max') return format(d, 'MMM yy'); // Jan 24
-        return format(d, 'MMM'); // Jan (for 1Y)
+        // Smart Formatting based on Range
+        if (timeRange === '1W') return format(d, 'EEE');
+        if (timeRange === '1M') return format(d, 'dd MMM');
+        if (timeRange === '1Y') return format(d, 'MMM');
+        if (timeRange === '5Y' || timeRange === 'max') return format(d, 'yyyy');
+        return format(d, 'dd MMM');
     };
 
     const volumeFormatter = (val) => {
-        if (val > 10000000) return `${(val / 10000000).toFixed(1)}Cr`; // Indian context often uses Crores, but M/B is standard
-        if (val > 1000000) return `${(val / 1000000).toFixed(1)}M`;
-        if (val > 1000) return `${(val / 1000).toFixed(1)}K`;
+        if (val > 10000000) return `${(val / 10000000).toFixed(2)}Cr`;
+        if (val > 1000000) return `${(val / 1000000).toFixed(2)}M`;
+        if (val > 1000) return `${(val / 1000).toFixed(2)}K`;
         return val;
     };
 
-    // 3. ADVANCED TOOLTIP
+    // 3. PROFESSIONAL TOOLTIP
     const CustomTooltip = ({ active, payload, label }) => {
         if (active && payload && payload.length) {
-            const d = payload[0].payload; // Access full data item
+            const d = payload[0].payload;
             const isUp = d.close >= d.open;
+            const color = isUp ? '#00C805' : '#FF333A'; // Yahoo Finance style colors
+
             return (
                 <Box
                     sx={{
-                        bgcolor: '#161b22', // Darker background
+                        bgcolor: 'rgba(13, 17, 23, 0.95)',
                         border: '1px solid #30363d',
-                        borderRadius: '6px',
+                        borderRadius: '4px',
                         p: 1.5,
-                        minWidth: '180px',
-                        boxShadow: '0 8px 16px rgba(0,0,0,0.6)'
+                        minWidth: '200px',
+                        backdropFilter: 'blur(4px)',
+                        boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
                     }}
                 >
-                    <Typography variant="caption" sx={{ color: '#8b949e', mb: 1, display: 'block' }}>
-                        {format(new Date(label), 'EEE, MMM d, yyyy h:mm a')}
+                    <Typography variant="caption" sx={{ color: '#8b949e', mb: 1, display: 'block', fontSize: '11px', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                        {format(new Date(label), 'EEE, MMM dd, yyyy')}
                     </Typography>
 
-                    <Box display="grid" gridTemplateColumns="1fr 1fr" gap={1}>
-                        <Box>
+                    <Box display="grid" gridTemplateColumns="1fr 1fr" columnGap={3} rowGap={0.5}>
+                        <Box display="flex" justifyContent="space-between">
                             <Typography variant="caption" color="text.secondary">Open</Typography>
-                            <Typography variant="body2" fontWeight="600" color="#c9d1d9">
-                                {currencySymbol}{d.open.toFixed(2)}
-                            </Typography>
+                            <Typography variant="body2" fontWeight="600" color="text.primary">{currencySymbol}{d.open.toFixed(2)}</Typography>
                         </Box>
-                        <Box>
+                        <Box display="flex" justifyContent="space-between">
                             <Typography variant="caption" color="text.secondary">High</Typography>
-                            <Typography variant="body2" fontWeight="600" color="#3fb950">
-                                {currencySymbol}{d.high.toFixed(2)}
-                            </Typography>
+                            <Typography variant="body2" fontWeight="600" color="#00C805">{currencySymbol}{d.high.toFixed(2)}</Typography>
                         </Box>
-                        <Box>
+                        <Box display="flex" justifyContent="space-between">
                             <Typography variant="caption" color="text.secondary">Low</Typography>
-                            <Typography variant="body2" fontWeight="600" color="#f85149">
-                                {currencySymbol}{d.low.toFixed(2)}
-                            </Typography>
+                            <Typography variant="body2" fontWeight="600" color="#FF333A">{currencySymbol}{d.low.toFixed(2)}</Typography>
                         </Box>
-                        <Box>
+                        <Box display="flex" justifyContent="space-between">
                             <Typography variant="caption" color="text.secondary">Close</Typography>
-                            <Typography variant="body2" fontWeight="600" color={isUp ? '#3fb950' : '#f85149'}>
-                                {currencySymbol}{d.close.toFixed(2)}
-                            </Typography>
+                            <Typography variant="body2" fontWeight="600" color={color}>{currencySymbol}{d.close.toFixed(2)}</Typography>
                         </Box>
                     </Box>
-                    <Box mt={1} pt={1} borderTop="1px solid #30363d">
-                        <Box display="flex" justifyContent="space-between">
-                            <Typography variant="caption" color="text.secondary">Volume</Typography>
-                            <Typography variant="caption" color="#c9d1d9">{volumeFormatter(d.volume)}</Typography>
-                        </Box>
+
+                    <Box mt={1.5} pt={1} borderTop="1px solid rgba(48, 54, 61, 0.5)" display="flex" justifyContent="space-between" alignItems="center">
+                        <Typography variant="caption" color="text.secondary">Vol</Typography>
+                        <Typography variant="caption" fontWeight="600" color="#c9d1d9">{volumeFormatter(d.volume)}</Typography>
                     </Box>
                 </Box>
             );
@@ -178,9 +119,9 @@ const StockChart = ({ data, timeRange = '1M', currencySymbol = '₹' }) => {
     };
 
     return (
-        <Box sx={{ width: '100%', height: '100%', bgcolor: '#0d1117', p: 1, position: 'relative' }}>
+        <Box sx={{ width: '100%', height: '100%', bgcolor: '#0d1117', p: 0, position: 'relative' }}>
 
-            {/* --- CHART TYPE CONTROLS (Absolute Overlay) --- */}
+            {/* --- CONTROLS OVERLAY --- */}
             <Stack
                 direction="row"
                 spacing={0.5}
@@ -188,12 +129,7 @@ const StockChart = ({ data, timeRange = '1M', currencySymbol = '₹' }) => {
                     position: 'absolute',
                     top: 10,
                     right: 20,
-                    zIndex: 10,
-                    bgcolor: 'rgba(22,27,34,0.8)',
-                    backdropFilter: 'blur(4px)',
-                    borderRadius: 1,
-                    p: 0.5,
-                    border: '1px solid #30363d'
+                    zIndex: 20,
                 }}
             >
                 <ToggleButtonGroup
@@ -201,94 +137,114 @@ const StockChart = ({ data, timeRange = '1M', currencySymbol = '₹' }) => {
                     exclusive
                     onChange={(e, v) => v && setChartType(v)}
                     size="small"
-                    sx={{ height: 28 }}
+                    sx={{
+                        height: 24,
+                        bgcolor: 'rgba(22,27,34,0.6)',
+                        backdropFilter: 'blur(2px)',
+                        border: '1px solid #30363d'
+                    }}
                 >
-                    <ToggleButton value="area" sx={{ px: 1, borderColor: '#30363d' }}>
-                        <ShowChart fontSize="small" sx={{ fontSize: 16 }} />
+                    <ToggleButton value="area" sx={{ px: 1, border: 'none', color: '#8b949e', '&.Mui-selected': { color: '#58a6ff', bgcolor: 'rgba(56,139,253,0.1)' } }}>
+                        <ShowChart sx={{ fontSize: 16 }} />
                     </ToggleButton>
-                    <ToggleButton value="line" sx={{ px: 1, borderColor: '#30363d' }}>
-                        <Timeline fontSize="small" sx={{ fontSize: 16 }} />
+                    <ToggleButton value="line" sx={{ px: 1, border: 'none', color: '#8b949e', '&.Mui-selected': { color: '#58a6ff', bgcolor: 'rgba(56,139,253,0.1)' } }}>
+                        <Timeline sx={{ fontSize: 16 }} />
                     </ToggleButton>
-                    <ToggleButton value="bar" sx={{ px: 1, borderColor: '#30363d' }}>
-                        <BarChartOutlined fontSize="small" sx={{ fontSize: 16 }} />
+                    <ToggleButton value="bar" sx={{ px: 1, border: 'none', color: '#8b949e', '&.Mui-selected': { color: '#58a6ff', bgcolor: 'rgba(56,139,253,0.1)' } }}>
+                        <BarChartOutlined sx={{ fontSize: 16 }} />
                     </ToggleButton>
                 </ToggleButtonGroup>
             </Stack>
 
             <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={chartData} margin={{ top: 10, right: 0, left: 0, bottom: 0 }}>
+                <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <defs>
+                        {/* Professional Gradient for Area Chart */}
                         <linearGradient id="colorClose" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#58a6ff" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#58a6ff" stopOpacity={0.05} />
+                            <stop offset="5%" stopColor="#2962FF" stopOpacity={0.3} />
+                            <stop offset="95%" stopColor="#2962FF" stopOpacity={0.0} />
+                        </linearGradient>
+                        {/* Gradient for Volume */}
+                        <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#30363d" stopOpacity={0.7} />
+                            <stop offset="95%" stopColor="#30363d" stopOpacity={0.1} />
                         </linearGradient>
                     </defs>
 
-                    <CartesianGrid strokeDasharray="3 3" stroke="#21262d" vertical={false} />
+                    <CartesianGrid
+                        strokeDasharray="3 3"
+                        stroke="#21262d"
+                        vertical={false}
+                        opacity={0.5}
+                    />
 
                     <XAxis
                         dataKey="unixTime"
-                        scale="time"
                         type="number"
                         domain={['dataMin', 'dataMax']}
+                        scale="time"
                         tickFormatter={xAxisFormatter}
-                        stroke="#8b949e"
-                        tick={{ fill: '#8b949e', fontSize: 11 }}
+                        stroke="#30363d"
+                        tick={{ fill: '#8b949e', fontSize: 10, fontFamily: 'sans-serif' }}
                         axisLine={false}
                         tickLine={false}
-                        minTickGap={40}
-                        height={40}
+                        minTickGap={50}
+                        dy={5}
                     />
 
-                    {/* Price Axis (Left) */}
                     <YAxis
                         yAxisId="price"
                         domain={['auto', 'auto']}
                         orientation="right"
                         tickFormatter={(val) => val.toFixed(0)}
-                        stroke="#8b949e"
-                        tick={{ fill: '#8b949e', fontSize: 11 }}
+                        stroke="#30363d"
+                        tick={{ fill: '#8b949e', fontSize: 10, fontFamily: 'sans-serif' }}
                         axisLine={false}
                         tickLine={false}
-                        width={45} // Minimal width
+                        width={40}
+                        dx={-5}
                     />
 
-                    {/* Volume Axis (Right/Hidden, scaled down) */}
+                    {/* Secondary Axis for Volume - Scaled to push bars down (High Max Domain) */}
                     <YAxis
                         yAxisId="volume"
-                        domain={[0, (dataMax) => dataMax * 5]} // Scale volume to stay low
+                        domain={[0, (dataMax) => dataMax * 4]} // Multiply by 4 to squash bars to bottom 25%
                         orientation="left"
                         show={false}
                     />
 
                     <Tooltip
                         content={<CustomTooltip />}
-                        cursor={{ stroke: '#58a6ff', strokeWidth: 1, strokeDasharray: '4 4' }}
-                        isAnimationActive={false}
+                        cursor={{ stroke: '#58a6ff', strokeWidth: 1, strokeDasharray: '3 3' }}
+                        isAnimationActive={true}
+                        animationDuration={200}
                     />
 
-                    {/* --- CHART LAYERS --- */}
+                    {/* LAYERS */}
 
-                    {/* Volume Bars (Always visible, bottom layer) */}
+                    {/* 1. Volume Bars (Background, Squashed) */}
                     <Bar
                         dataKey="volume"
                         yAxisId="volume"
-                        fill="#30363d"
-                        barSize={chartType === 'bar' ? undefined : 3}
-                        opacity={0.5}
+                        fill="url(#colorVolume)"
+                        barSize={chartType === 'bar' ? undefined : 4} // Thin bars
+                        opacity={0.8}
+                        isAnimationActive={false}
                     />
 
-                    {/* Main Pricing Layer */}
+                    {/* 2. Main Price Line/Area */}
                     {chartType === 'area' && (
                         <Area
                             type="monotone"
                             dataKey="close"
                             yAxisId="price"
-                            stroke="#58a6ff"
+                            stroke="#2962FF" // TradingView Blue
                             strokeWidth={2}
                             fillOpacity={1}
                             fill="url(#colorClose)"
-                            activeDot={{ r: 6, strokeWidth: 0, fill: '#fff' }}
+                            activeDot={{ r: 4, stroke: '#2962FF', strokeWidth: 2, fill: '#0d1117' }}
+                            isAnimationActive={true}
+                            animationDuration={500}
                         />
                     )}
 
@@ -297,36 +253,37 @@ const StockChart = ({ data, timeRange = '1M', currencySymbol = '₹' }) => {
                             type="monotone"
                             dataKey="close"
                             yAxisId="price"
-                            stroke="#58a6ff"
+                            stroke="#2962FF"
                             strokeWidth={2}
                             dot={false}
-                            activeDot={{ r: 6, strokeWidth: 0, fill: '#fff' }}
+                            activeDot={{ r: 4, stroke: '#2962FF', strokeWidth: 2, fill: '#0d1117' }}
+                            isAnimationActive={true}
+                            animationDuration={500}
                         />
                     )}
 
                     {chartType === 'bar' && (
-                        /* Using ComposedChart Bar for OHLC-like representation is tricky. 
-                           We map [max(open, close)] to value.
-                           It's simpler to show High-Low bars or just standard OHLC shapes if we had them.
-                           Here we fall back to a "Bar" chart of Close prices for simplicity in this constrained requirement.
-                        */
                         <Bar
                             dataKey="close"
                             yAxisId="price"
-                            fill="#58a6ff"
-                            barSize={5}
+                            fill="#2962FF"
+                            barSize={6} // Slightly thicker for main view
+                            opacity={0.9}
+                            isAnimationActive={true}
                         />
                     )}
 
-                    {/* Interactive Zoom Brush (Simplified Scrollbar Style) */}
+                    {/* 3. Interactive Brush (Zoom/Scroll) */}
                     <Brush
                         dataKey="unixTime"
-                        height={12}
+                        height={20}
                         stroke="#30363d"
-                        fill="#0d1117"
+                        fill="#0d1117" // Dark background
                         tickFormatter={() => ''}
-                        travellerWidth={0}
-                        y={undefined}
+                        travellerWidth={10}
+                        gap={1}
+                        opacity={0.5}
+                        y={chartType === 'area' ? 570 : undefined} // Adjust position slightly
                     />
 
                 </ComposedChart>

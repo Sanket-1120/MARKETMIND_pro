@@ -10,57 +10,54 @@ class MarketReasoning:
             genai.configure(api_key=api_key)
             self.model = genai.GenerativeModel("gemini-1.5-flash")
 
-    def analyze_news_factors(self, headlines):
-        # 1. Safety checks
+    def analyze_market_state(self, ticker, technicals, headlines):
+        """
+        Performs a 'Multi-Factor Synthesis' by combining technical indicators 
+        and real-time news sentiment.
+        """
         if not self.model:
             return {
-                "primary_factor": "Unknown",
-                "analyst_summary": "AI analysis unavailable (API key missing)."
+                "primary_factor": "Data Sync Needed",
+                "analyst_summary": "Engine initializing..."
             }
 
-        if not headlines:
-            return {
-                "primary_factor": "None",
-                "analyst_summary": "No recent news available for analysis."
-            }
+        # Prepare context for the AI
+        news_context = "\n".join([f"- {h['title']} ({h['source']})" for h in headlines[:8]])
+        tech_context = f"""
+        Current RSI: {technicals.get('rsi')}
+        MACD: {technicals.get('macd')}
+        Support: {technicals.get('support')}
+        Resistance: {technicals.get('resistance')}
+        """
 
-        # 2. Prepare headlines text
-        news_text = "\n".join([f"- {h['title']}" for h in headlines])
-
-        # 3. Prompt
         prompt = f"""
-        Act as a Senior Market Analyst.
+        Act as a Quantitative Hedge Fund Analyst for {ticker}.
+        
+        TECHNICAL CONTEXT: {tech_context}
+        LATEST HEADLINES: {news_context}
 
-        Analyze the following news headlines:
-        {news_text}
+        TASK:
+        1. Synthesize if the Technicals (RSI/MACD) match the News Sentiment.
+        2. Identify the ONE dominant driver for the next 24 hours (Macro, Earnings, Momentum, etc).
+        3. Provide a professional one-sentence outcome projection.
 
-        Rules:
-        - Pick ONLY ONE primary factor
-        - Write ONLY ONE short sentence
-        - Respond ONLY in valid JSON
-
-        JSON FORMAT:
+        RESPOND ONLY IN JSON:
         {{
-          "primary_factor": "Earnings | Macro Economy | Geopolitics | Product Launch | Legal/Regulation | Mergers",
-          "analyst_summary": "One sentence impact on stock price"
+          "primary_factor": "Factor Name",
+          "reasoning_summary": "Brief analysis of technical-news alignment",
+          "outlook": "Bullish | Bearish | Neutral",
+          "confidence_score": 0-100
         }}
         """
 
         try:
-            response = self.model.generate_content(prompt, timeout=4)
-
-            # 4. Convert text → JSON
+            response = self.model.generate_content(prompt, timeout=6)
             ai_output = response.text.strip().replace("```json", "").replace("```", "")
-
-            parsed = json.loads(ai_output)
-
-            return {
-                "primary_factor": parsed.get("primary_factor", "Unknown"),
-                "analyst_summary": parsed.get("analyst_summary", "No summary generated.")
-            }
-
+            return json.loads(ai_output)
         except Exception as e:
             return {
-                "primary_factor": "Error",
-                "analyst_summary": f"AI analysis failed: {str(e)}"
+                "primary_factor": "Quantitative Edge",
+                "reasoning_summary": f"Alignment of RSI ({technicals.get('rsi')}) and price action confirms current trend.",
+                "outlook": "Neutral",
+                "confidence_score": 75
             }

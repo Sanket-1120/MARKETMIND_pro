@@ -4,15 +4,21 @@ from sentiment_engine import SentimentEngine
 
 from fastapi.middleware.cors import CORSMiddleware
 
+import os
+from dotenv import load_dotenv
+from ai_engine import MarketReasoning
+
+load_dotenv()
+
 app = FastAPI(
-    title="AI Trade Intelligence",
-    version="1.0"
+    title="MarketMind Professional",
+    version="2.0"
 )
 
 # CORS setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # For dev, allow all. In prod, specify the list.
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -21,6 +27,7 @@ app.add_middleware(
 # Initialize engines
 engine = TradeSignalGenerator()
 sentiment_engine = SentimentEngine()
+ai_hub = MarketReasoning(api_key=os.getenv("GEMINI_API_KEY"))
 
 
 @app.get("/")
@@ -44,7 +51,14 @@ def analyze_stock(ticker: str, range: str = "1M"):
         if "error" in analysis_result:
              raise HTTPException(status_code=404, detail="Ticker not found or data unavailable")
 
-        # STEP 3: Assemble Final Response
+        # STEP 3: AI Market Synthesis (The Intelligence Layer)
+        ai_analysis = ai_hub.analyze_market_state(
+            ticker=ticker.upper(),
+            technicals=analysis_result["technical_analysis"],
+            headlines=news_items
+        )
+
+        # STEP 4: Assemble Final Response
         return {
             "ticker": ticker.upper(),
             "price": analysis_result["price"],
@@ -62,6 +76,7 @@ def analyze_stock(ticker: str, range: str = "1M"):
                 "news": news_items
             },
             "charts": analysis_result["charts"],
+            "ai_analysis": ai_analysis, # New Synergistic Analysis
             "ai_explanation": analysis_result["ai_explanation"]
         }
 
