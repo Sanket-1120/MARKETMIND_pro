@@ -59,7 +59,7 @@ It analyzes real-time stock data (Indian & Global markets), applies technical in
 
 ---
 
-## System Architecture
+##  System Architecture
 
 MarketMind follows a modern **Client-Server Architecture**:
 
@@ -71,4 +71,5 @@ graph LR
   Backend -->|Fetch| NewsAPI[Global News]
   Backend -->|Process| LogicEngine[XAI & Indicators]
   LogicEngine -->|JSON Response| Frontend
+
 
