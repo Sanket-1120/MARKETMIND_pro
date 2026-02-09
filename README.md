@@ -65,9 +65,10 @@ MarketMind follows a modern **Client-Server Architecture**:
 
 ```mermaid
 graph LR
-  User -->|Request (Ticker)| Frontend[React Dashboard]
-  Frontend -->|API Call| Backend[FastAPI Server]
-  Backend -->|Fetch| YahooFinance[Live Market Data]
-  Backend -->|Fetch| NewsAPI[Global News]
-  Backend -->|Process| LogicEngine[XAI & Indicators]
-  LogicEngine -->|JSON Response| Frontend
+  User -- "Request (Ticker)" --> Frontend[React Dashboard]
+  Frontend -- "API Call" --> Backend[FastAPI Server]
+  Backend -- Fetch --> YahooFinance[Live Market Data]
+  Backend -- Fetch --> NewsAPI[Global News]
+  Backend -- Process --> LogicEngine["XAI & Indicators"]
+  LogicEngine -- "JSON Response" --> Frontend
+
