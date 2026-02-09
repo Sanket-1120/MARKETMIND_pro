@@ -1,4 +1,4 @@
-# 🧠 MarketMind: Real-Time Explainable Market Intelligence
+# MarketMind: Real-Time Explainable Market Intelligence
 ### *Transparent AI-Based Decision Support for the Modern Investor*
 
 [![React](https://img.shields.io/badge/Frontend-React_18-61DAFB?logo=react)](https://reactjs.org/)
@@ -11,7 +11,7 @@
 
 ---
 
-## 📋 Table of Contents
+##  Table of Contents
 - [📖 Introduction](#-introduction)
 - [🚀 Key Features](#-key-features)
 - [🛠️ Tech Stack](#-tech-stack)
@@ -34,7 +34,7 @@ It analyzes real-time stock data (Indian & Global markets), applies technical in
 
 ---
 
-## 🚀 Key Features
+##  Key Features
 
 * **🔍 Explainable Signals:** Every BUY/SELL/HOLD signal comes with a bullet-point explanation (e.g., *"RSI < 30 indicates oversold conditions"*).
 * **📈 Real-Time Data:** Fetches live OHLCV data for any ticker (e.g., `TCS.NS`, `AAPL`) via Yahoo Finance.
@@ -45,7 +45,7 @@ It analyzes real-time stock data (Indian & Global markets), applies technical in
 
 ---
 
-## 🛠️ Tech Stack
+##  Tech Stack
 
 | Component | Technology | Description |
 | :--- | :--- | :--- |
@@ -59,7 +59,7 @@ It analyzes real-time stock data (Indian & Global markets), applies technical in
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 MarketMind follows a modern **Client-Server Architecture**:
 
@@ -71,3 +71,4 @@ graph LR
   Backend -->|Fetch| NewsAPI[Global News]
   Backend -->|Process| LogicEngine[XAI & Indicators]
   LogicEngine -->|JSON Response| Frontend
+
